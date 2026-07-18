@@ -8,21 +8,41 @@ export function prepareAudio(context: AudioContext | null): AudioContext | null 
   }
 }
 
+function playTone(context: AudioContext, frequency: number, startAt: number, duration: number, volume: number, type: OscillatorType = 'sine'): void {
+  const oscillator = context.createOscillator()
+  const gain = context.createGain()
+
+  oscillator.type = type
+  oscillator.frequency.setValueAtTime(frequency, startAt)
+  gain.gain.setValueAtTime(0.0001, startAt)
+  gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.012)
+  gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration)
+  oscillator.connect(gain).connect(context.destination)
+  oscillator.start(startAt)
+  oscillator.stop(startAt + duration + 0.02)
+}
+
+export function playCountdownFeedback(context: AudioContext | null, count: number): void {
+  try {
+    if (context?.state === 'suspended') void context.resume().catch(() => undefined)
+    if (!context) return
+
+    // A slightly higher cue on "1" makes the start point easy to catch.
+    playTone(context, count === 1 ? 880 : 660, context.currentTime, 0.1, 0.07, 'square')
+  } catch {
+    // Feedback is optional; never let it interrupt the timer.
+  }
+}
+
 export function playCompletionFeedback(context: AudioContext | null): void {
   try {
     if (context?.state === 'suspended') void context.resume().catch(() => undefined)
     if (context) {
-      const oscillator = context.createOscillator()
-      const gain = context.createGain()
-      oscillator.type = 'sine'
-      oscillator.frequency.setValueAtTime(660, context.currentTime)
-      oscillator.frequency.exponentialRampToValueAtTime(880, context.currentTime + 0.22)
-      gain.gain.setValueAtTime(0.0001, context.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.13, context.currentTime + 0.03)
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.32)
-      oscillator.connect(gain).connect(context.destination)
-      oscillator.start()
-      oscillator.stop(context.currentTime + 0.34)
+      const startAt = context.currentTime
+      // A distinct three-note chime is more noticeable than the previous single sweep.
+      playTone(context, 523.25, startAt, 0.16, 0.11, 'sine')
+      playTone(context, 659.25, startAt + 0.18, 0.16, 0.11, 'sine')
+      playTone(context, 783.99, startAt + 0.36, 0.42, 0.13, 'sine')
     }
   } catch {
     // Feedback is optional; never let it interrupt the timer.

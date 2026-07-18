@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { calculateStreak, formatDate, hasCompletedToday, localDateKey } from './lib/dates'
-import { playCompletionFeedback, prepareAudio } from './lib/feedback'
+import { playCompletionFeedback, playCountdownFeedback, prepareAudio } from './lib/feedback'
 import { loadData, saveRecord } from './lib/storage'
 import { remainingSeconds } from './lib/timer'
 import { DURATIONS, type Duration, type SessionRecord, type TimerStatus } from './types'
@@ -24,6 +24,7 @@ function App() {
   const statusRef = useRef<TimerStatus>('idle')
   const audioContextRef = useRef<AudioContext | null>(null)
   const completionHandledRef = useRef(false)
+  const lastCountdownSoundRef = useRef<number | null>(null)
 
   const updateStatus = (next: TimerStatus) => {
     statusRef.current = next
@@ -60,7 +61,12 @@ function App() {
     const workoutStart = workoutStartRef.current ?? now
     if (now < workoutStart) {
       updateStatus('countdown')
-      setCountdownNumber(Math.max(1, Math.ceil((workoutStart - now) / 1000)))
+      const count = Math.max(1, Math.ceil((workoutStart - now) / 1000))
+      setCountdownNumber(count)
+      if (lastCountdownSoundRef.current !== count) {
+        lastCountdownSoundRef.current = count
+        playCountdownFeedback(audioContextRef.current, count)
+      }
       return
     }
 
@@ -93,9 +99,11 @@ function App() {
     workoutStartRef.current = now + COUNTDOWN_MS
     deadlineRef.current = workoutStartRef.current + duration * 1000
     completionHandledRef.current = false
+    lastCountdownSoundRef.current = 3
     setCountdownNumber(3)
     setDisplaySeconds(duration)
     updateStatus('countdown')
+    playCountdownFeedback(audioContextRef.current, 3)
   }
 
   const pause = () => {
@@ -119,6 +127,7 @@ function App() {
     deadlineRef.current = null
     workoutStartRef.current = null
     completionHandledRef.current = false
+    lastCountdownSoundRef.current = null
     pausedSecondsRef.current = duration
     setDisplaySeconds(duration)
     setCountdownNumber(3)
